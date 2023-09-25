@@ -2,7 +2,7 @@ import networkx as nx
 import numpy as np
 from google.cloud import storage
 import os
-
+import re
 
 #nitializes a connection to specified GCS bucket and returns it
 def initialize_storage_client(bucket_name):
@@ -18,90 +18,87 @@ def build_graph(bucket):
     outgoing_links = []
     incoming_links = {}
     G = nx.DiGraph()
-
-        
-    # Iterate over each file in the GCS bucket
+    
+    # List valid files
     blobs = list(bucket.list_blobs(prefix="Serena_Directory/ds561_hw2_pythonfiles/"))
+    valid_files = set(blob.name.split("/")[-1].replace(".html", "") for blob in blobs)
+
+    # Link extraction pattern
+    link_pattern = re.compile(r'<a\s+href="([^"]+)"', re.IGNORECASE)
+
+    # Iterate over each file in the GCS bucket
     for blob in blobs:
         content = blob.download_as_text()
         
-        # Extract outgoing links from each file's content
-        links = [link.split('"')[1].replace(".html", "") for link in content.split('<a HREF="')[1:]]
+        # Extract outgoing links
+        links = [match.group(1).replace(".html", "") for match in link_pattern.finditer(content)]
+        
+        # Filter out invalid links
+        links = [link for link in links if link in valid_files]
         
         file_name = blob.name.split("/")[-1].replace(".html", "")
-        #store the number of outgoing links for each file
         outgoing_links.append(len(links))
         
-        # Adding nodes and edges to the graph G
         G.add_node(file_name)
         for link in links:
-            #add an edge from the current file to the linked file to update graph
             G.add_edge(file_name, link)
             
-            # Update incoming links
-            if link not in G:
-                G.add_node(link)
-            incoming_links[link] = len(G.pred[link])
-            
+    for node in G.nodes():
+        incoming_links[node] = len(G.pred[node])
+        
     return G, outgoing_links, incoming_links
 
 #Calculates and prints various statistics
 #outgoing and incoming links, including averages, medians, maxima, minima, and quintiles
 def print_statistics(outgoing_links, incoming_links):
+    # Outgoing link statistics
     avg_outgoing = np.mean(outgoing_links)
-    print("Average outgoing:", avg_outgoing)
-    
     median_outgoing = np.median(outgoing_links)
-    print("Median outgoing:", median_outgoing)
-    
     max_outgoing = np.max(outgoing_links)
-    print("Max outgoing:", max_outgoing)
-    
     min_outgoing = np.min(outgoing_links)
-    print("Min outgoing:", min_outgoing)
-    
-    quintiles_outgoing = np.percentile(outgoing_links, [20, 40, 60, 80])
-    print("Quintiles outgoing:", quintiles_outgoing)
-    
+    quintiles_outgoing = np.percentile(outgoing_links, [20, 40, 60, 80, 100])
+
+    # Incoming link statistics
     avg_incoming = np.mean(list(incoming_links.values()))
-    print("Average incoming:", avg_incoming)
-    
     median_incoming = np.median(list(incoming_links.values()))
-    print("Median incoming:", median_incoming)
-    
     max_incoming = np.max(list(incoming_links.values()))
-    print("Max incoming:", max_incoming)
-    
     min_incoming = np.min(list(incoming_links.values()))
+    quintiles_incoming = np.percentile(list(incoming_links.values()), [20, 40, 60, 80, 100])
+
+    # Print the calculated statistics
+    print("Average outgoing:", avg_outgoing)
+    print("Median outgoing:", median_outgoing)
+    print("Max outgoing:", max_outgoing)
+    print("Min outgoing:", min_outgoing)
+    print("Quintiles outgoing:", quintiles_outgoing)
+    print("Average incoming:", avg_incoming)
+    print("Median incoming:", median_incoming)
+    print("Max incoming:", max_incoming)
     print("Min incoming:", min_incoming)
-    
-    quintiles_incoming = np.percentile(list(incoming_links.values()), [20, 40, 60, 80])
     print("Quintiles incoming:", quintiles_incoming)
 
 #Calculates the PageRank of each node in the graph using an iterative method
 #Returns a dictionary with nodes as keys and their corresponding PageRank values as values
 def original_iterative_pagerank(G, damping=0.85, max_iter=1000):
-    N = len(G)  # Number of nodes in the graph
-    pr = {node: 1.0/N for node in G.nodes()}  # Initialize each node's PageRank to 1/N
-
-    total_pr_prev = sum(pr.values())  # Initial total PageRank value
+    N = len(G)
+    pr = {node: 1.0/N for node in G.nodes()}
 
     for _ in range(max_iter):
         new_pr = {}
         for node in G.nodes():
             total_for_node = sum([pr[pred] / len(G[pred]) if G[pred] else 0 for pred in G.pred[node]])
-            
-            # PageRank formula here:
             new_pr[node] = (1 - damping)/N + damping * total_for_node
-        
-        total_pr_new = sum(new_pr.values())
-        
-        # Check for convergence
-        if abs(total_pr_new - total_pr_prev) / total_pr_prev < 0.005:  # Change is less than 0.5%
+
+        # Normalization step
+        s = sum(new_pr.values())
+        for node in G.nodes():
+            new_pr[node] = new_pr[node] / s
+
+        # Check for convergence using L1 norm
+        if sum(abs(new_pr[node]-pr[node]) for node in G.nodes()) < 0.005:
             break
         
-        pr = new_pr  # Update PageRank values for the next iteration
-        total_pr_prev = total_pr_new  # Update the previous total PageRank value
+        pr = new_pr
 
     return pr
 
