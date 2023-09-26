@@ -1,12 +1,11 @@
 import networkx as nx
 import numpy as np
 from google.cloud import storage
-import os
 import re
 
 #nitializes a connection to specified GCS bucket and returns it
 def initialize_storage_client(bucket_name):
-    client = storage.Client()
+    client = storage.Client.create_anonymous_client()
     return client.bucket(bucket_name)
 
 
@@ -94,7 +93,7 @@ def original_iterative_pagerank(G, damping=0.85, max_iter=1000):
         for node in G.nodes():
             new_pr[node] = new_pr[node] / s
 
-        # Check for convergence using L1 norm
+        # Check for convergence
         if sum(abs(new_pr[node]-pr[node]) for node in G.nodes()) < 0.005:
             break
         
@@ -105,7 +104,7 @@ def original_iterative_pagerank(G, damping=0.85, max_iter=1000):
 def main():
     
     # Set the environment variable for authentication
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "/Users/serenatheobald/Downloads/ds-561-first-project-a6047833252d.json"
+    #os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "/Users/serenatheobald/Downloads/ds-561-first-project-a6047833252d.json"
 
     bucket = initialize_storage_client("serena_ds561_hw2_bucket")
     #construct graph of the pages
@@ -116,9 +115,9 @@ def main():
     
     #compute the pagerank after constructing graph of pages
     #output the top 5 pages by their pagerank score
-    pagerank = nx.pagerank(G, alpha=0.85, tol=0.005)
-    top_pages = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)[:5]
-    print("Top 5 pages by PageRank:", top_pages)
+    #pagerank = nx.pagerank(G, alpha=0.85, tol=0.005)
+    #top_pages = sorted(pagerank.items(), key=lambda x: x[1], reverse=True)[:5]
+    #print("Top 5 pages by PageRank:", top_pages)
 
     #Code the original iterative pagerank algorithm
     pagerank_iterative = original_iterative_pagerank(G)
