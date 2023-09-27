@@ -127,9 +127,6 @@ def original_iterative_pagerank(G, damping=0.85, max_iter=1000):
 
 def main():
     
-    # Set the environment variable for authentication
-    #os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "/Users/serenatheobald/Downloads/ds-561-first-project-a6047833252d.json"
-
     bucket = initialize_storage_client("serena_ds561_hw2_bucket")
     # Construct graph of the pages
     G, outgoing_links, incoming_links = build_graph(bucket)
