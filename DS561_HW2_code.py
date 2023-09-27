@@ -5,28 +5,36 @@ import re
 
 # Directed Graph class
 class DiGraph:
+    
+    #initialize empty graph
     def __init__(self):
         self.graph = {}
 
     def add_node(self, node):
+        # Adds a node to the graph if it doesn't already exist
         if node not in self.graph:
             self.graph[node] = set()
 
     def add_edge(self, src_node, dst_node):
+        #Adds a directed edge from src_node to dst_node
         self.add_node(src_node)
         self.add_node(dst_node)
         self.graph[src_node].add(dst_node)
 
     def get_outgoing_nodes(self, node):
+        #Returns nodes that the given node points to
         return self.graph.get(node, set())
 
     def get_incoming_nodes(self, node):
+        #Returns nodes that point to the given node
         return {k for k, v in self.graph.items() if node in v}
 
     def nodes(self):
+        #Returns all nodes in the graph
         return self.graph.keys()
 
     def __str__(self):
+        #String representation of the graph
         return "\n".join([f"{node} -> {', '.join(map(str, neighbors))}" for node, neighbors in self.graph.items()])
 
 
@@ -38,18 +46,18 @@ def initialize_storage_client(bucket_name):
     return client.bucket(bucket_name)
 
 
-#Iterates over each file in the specified GCS bucket.
-#Extracts outgoing links from each file's content.
-#Constructs a directed graph (nx.DiGraph()) based on these links.
-#Returns the graph, a list of counts of outgoing links for each file, and a dictionary of incoming link counts.
+# Iterates over each file in the specified GCS bucket, extracts outgoing links from each file's content, 
+# constructs a directed graph based on these links, and returns the graph along with statistics on the links
 def build_graph(bucket):
     outgoing_links = []
     incoming_links = {}
     G = DiGraph()
     
+    #Filtering for valid files within a specified directory
     blobs = list(bucket.list_blobs(prefix="Serena_Directory/ds561_hw2_pythonfiles/"))
     valid_files = set(blob.name.split("/")[-1].replace(".html", "") for blob in blobs)
-
+    
+    #identify links within the HTML content
     link_pattern = re.compile(r'<a\s+href="([^"]+)"', re.IGNORECASE)
 
     for blob in blobs:
@@ -70,6 +78,7 @@ def build_graph(bucket):
         
     return G, outgoing_links, incoming_links
 
+#Prints statistics about the number of incoming and outgoing links for each node in the graph
 def print_statistics(G):
     outgoing_links = [len(G.get_outgoing_nodes(node)) for node in G.nodes()]
     incoming_links = {node: len(G.get_incoming_nodes(node)) for node in G.nodes()}
