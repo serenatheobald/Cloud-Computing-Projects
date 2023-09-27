@@ -99,7 +99,7 @@ def print_statistics(G):
 
 #Calculates the PageRank of each node in the graph using an iterative method
 #Returns a dictionary with nodes as keys and their corresponding PageRank values as values
-def original_iterative_pagerank(G, damping=0.85, max_iter=1000):
+def original_iterative_pagerank(G, damping=0.85, max_iter=10000):
     N = len(G.nodes())
     pr = {node: 1.0/N for node in G.nodes()}
 
@@ -108,7 +108,9 @@ def original_iterative_pagerank(G, damping=0.85, max_iter=1000):
         for node in G.nodes():
             # For each node, consider the nodes linking to it (predecessors)
             preds = G.get_incoming_nodes(node)
-            total_for_node = sum([pr[pred] / len(G.get_outgoing_nodes(pred)) if G.get_outgoing_nodes(pred) else 0 for pred in preds])
+            #distribute the PageRank of dangling nodes equally among all nodes in the graph
+            dangling_pr = sum(pr[pred] for pred in G.nodes() if not G.get_outgoing_nodes(pred)) / N
+            total_for_node = sum(pr[pred] / len(G.get_outgoing_nodes(pred)) if G.get_outgoing_nodes(pred) else dangling_pr for pred in preds)
             new_pr[node] = (1 - damping)/N + damping * total_for_node
 
         # Normalization step
