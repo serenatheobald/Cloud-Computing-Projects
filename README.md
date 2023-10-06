@@ -8,15 +8,19 @@ Here is the new code I implemented:
 
 **URL Parameter for Requests:**
 Old: conn.request("GET", filename, headers=headers)
+
 New: url = f"/accept_requests?file_name={filename}"; conn.request("GET", url, headers=headers)
+
 In the new code, instead of directly requesting the filename as a path, it requests an endpoint /accept_requests with a parameter file_name holding the desired filename.
 
 **Filename Creation:**
+
 Old: filename = make_filename(args.bucket, args.webdir, args.index)
 New: filename = make_filename(args.bucket, args.webdir, args.index).split('/')[-1]
 
 The new code I implemented only takes the last part of the generated filename, effectively removing any directory predixes
 
 **Domain Modifications:**
+
 Added this line of code: args.domain = args.domain.replace("http://", "").replace("https://", "")
 In the newer version, any 'http://' or 'https://' prefix from the domain argument is removed. This step ensures that only the domain name is passed to the make_request function.
