@@ -2,7 +2,7 @@ For Homework 3, my files are: ds561hw3pythonhelper.py (helper python client), ma
 
 In addition, I made very small changes to the helper client .py file. With the original helper python client file, I wasn't able to directly access files while requesting even just testing the functionality of a few hundred of my cloud storage files. I recieved only "404 Error Not Found" messages for each html file I was trying to access, which made me think that the server was unable to locate the specified file.
 
-Here is the new code I implemented:
+Here is the new code I implemented://
 **URL Parameter for Requests:**
 Old: conn.request("GET", filename, headers=headers)
 New: url = f"/accept_requests?file_name={filename}"; conn.request("GET", url, headers=headers)
