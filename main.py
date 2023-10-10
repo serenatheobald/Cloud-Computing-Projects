@@ -4,10 +4,8 @@ from flask import request, send_file, Response
 from google.cloud import storage
 from google.cloud import pubsub_v1
 from google.cloud.logging import Client as LoggingClient
-import logging as std_logging
 import traceback
-from urllib.parse import urlparse
-
+import google.cloud.logging
 
 # Initialize the Google Cloud Pub/Sub publisher client
 publisher = pubsub_v1.PublisherClient()
@@ -32,9 +30,12 @@ Banned_Countries = ["north korea", "iran", "cuba", "myanmar", "iraq", "libya", "
 def callback(future):
     try:
         message_id = future.result()
-        print(f"Message {message_id} published.")
+        logger.log_text(f"Message {message_id} published.", severity='INFO')  
     except Exception as e:
-        print(f"Failed to publish message due to {e}")
+        logger.log_text(f"Failed to publish message due to {str(e)}", severity='ERROR')  
+        logger.log_text(traceback.format_exc(), severity='ERROR') 
+
+
 
 # Listens for HTTP GET requests and serves files from Google Cloud Storage bucket
 # based on the file name in the request
@@ -44,34 +45,36 @@ def accept_requests(request):
     # Log the entire request 
     logger.log_text(f"Received request: {request}", severity='INFO')
     logger.log_text(f"Received request path: {request.path}", severity='INFO')
+    
+    logger.log_text(f"Received headers: {request.headers}", severity='INFO')
+    # Extract and log the original IP from the header
+    original_ip = request.headers.get('X-client-IP', '').split(',')[0]
+    logger.log_text(f"Original IP Address: {original_ip}", severity='INFO')
+    
+    # retrieve the country directly from the header
+    country = request.headers.get('X-country', '').lower().strip()
+    logger.log_text(f"Received Country via Header: {country}", severity='INFO')
 
+    # Debug log: Checking against banned countries
+    logger.log_text(f"Checking against banned countries: {Banned_Countries}", severity='INFO')
 
 
     # Requests for other HTTP methods other than GET should return 501 status
     if request.method != 'GET':
         # Log unexpected method
-        logger.log_text(f"Received unexpected method {request.method}", severity='ERROR')
-        return 'Not implemented', 501
-    
-    # Retrieve the country from the request
-    country = request.args.get('country', '').lower()
+        logger.log_text(f"Received unexpected method {request.method}. Responding with 501.", severity='ERROR')
+        return Response("Not implemented", content_type="text/html", status = 501)
 
-    if country in Banned_Countries:
-        logger.log_text(f'Forbidden Country: {country.title()}', severity='ERROR')
-        message = f"Forbidden request from {country.title()}"
+
+    if country.lower().strip() in Banned_Countries:
+        logger.log_text(f'Forbidden Country: {country}', severity='ERROR')
+        message = f"Forbidden request from {country}"
+        logger.log_text("Attempting to publish message...", severity='INFO')
         publish_future = publisher.publish(topic_path, message.encode("utf-8"))
         publish_future.add_done_callback(callback)
+        logger.log_text("Message publishing initiated", severity='INFO') 
         return "FORBIDDEN COUNTRY", 400
     
-    
-
-     # Getting file name from request
-    #file_name = request.args.get('file_name')
-    #logger.log_text(f"Retrieved file_name value: {file_name}", severity='INFO')
-    
-    # Stripping the path and only keeping the file name
-    #base_name =  file_name.split("/")[-1]
-    #logger.log_text(f"Stripped file name from request: {base_name}", severity='INFO')
 
     # Extract the file name from the URL path using request.path
     logger.log_text(f"Raw Path: {request.path}", severity='INFO')
@@ -105,39 +108,22 @@ def accept_requests(request):
        
         # Checking if blob exists
         if not blob.exists():
-            logger.log_text("File not found", severity='ERROR')
-            return "File not found", 404
+            logger.log_text("Error 404: File not found", severity='ERROR')
+            return Response("File not found", content_type="text/html", status = 404)
        
         # Get blob contents as text and send it as a response
         file_contents = blob.download_as_text()
         
         # Log successful request
-        logger.log_text(f"File {file_name} served successfully", severity='INFO')
-        
-        return Response(file_contents, content_type="text/html"), 200
+        logger.log_text(f"File {file_name} served successfully. Responding with 200.", severity='INFO')
+        return Response(file_contents, content_type="text/html", status = 200)
 
     except Exception as e:
         # Log the error message and traceback
-        error_message = f"An error occurred: {str(e)}"
+        error_message = f"An error occurred: {str(e)}. Responding with 500."
         logger.log_text(error_message, severity='ERROR')
         traceback_str = traceback.format_exc()
         logger.log_text(traceback_str, severity='ERROR')
-        return "An error occurred while processing the request", 500
+        return Response("An error occured while processing the request", content_type="text/html", status = 500)
     
 
-# tells the subscriber to listen to the specified Pub/Sub subscription 
-#listening for and processing messages sent by second app via the Pub/Sub topic and subscription
-if __name__ == "__main__":
-    # Start the Pub/Sub subscriber to listen for messages
-    streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
-    print(f"Listening for Pub/Sub messages on {subscription_path}...")
-
-    try:
-        # Wait for the subscriber to finish receiving messages
-        streaming_pull_future.result()
-    except Exception as e:
-        streaming_pull_future.cancel()
-        print(f"Error receiving Pub/Sub messages: {str(e)}")
-    
-    
-    
