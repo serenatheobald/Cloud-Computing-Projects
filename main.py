@@ -27,15 +27,6 @@ logger = client.logger('homework3_logger')
 Banned_Countries = ["north korea", "iran", "cuba", "myanmar", "iraq", "libya", "sudan", "zimbabwe", "syria"]
 
 
-def callback(future):
-    try:
-        message_id = future.result()
-        logger.log_text(f"Message {message_id} published.", severity='INFO')  
-    except Exception as e:
-        logger.log_text(f"Failed to publish message due to {str(e)}", severity='ERROR')  
-        logger.log_text(traceback.format_exc(), severity='ERROR') 
-
-
 
 # Listens for HTTP GET requests and serves files from Google Cloud Storage bucket
 # based on the file name in the request
@@ -71,8 +62,11 @@ def accept_requests(request):
         message = f"Forbidden request from {country}"
         logger.log_text("Attempting to publish message...", severity='INFO')
         publish_future = publisher.publish(topic_path, message.encode("utf-8"))
-        publish_future.add_done_callback(callback)
+        #u need to trigger the publishing with .result()
+        publish_future.result()
         logger.log_text("Message publishing initiated", severity='INFO') 
+        logger.log_text(f"Message with ID {publish_future.result()} published successfully.", severity='INFO')
+
         return "FORBIDDEN COUNTRY", 400
     
 
