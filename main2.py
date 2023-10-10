@@ -9,35 +9,31 @@ from google.cloud.logging import Client as LoggingClient
 # Create a logger instance
 client = LoggingClient()
 logger = client.logger('homework3_logger')
-
+subscriber = pubsub_v1.SubscriberClient()
 
 project_id = "ds-561-first-project"
 subscription_id = "serena_topic-sub"
+subscription_path = subscriber.subscription_path(project_id, subscription_id)
+
 
 def callback(message):
     try:
-        message_data = message.data.decode("utf-8")
-        if "Forbidden request" in message_data:
-            country = message_data.split("from ")[1]
-            logger.log_text(f"Received forbidden request from {country}", severity='INFO')
+        print(f"Received {message}.")
         message.ack()
     except Exception as e:
-        logger.log_text(f"Error processing message: {str(e)}", severity='ERROR')
+        print(f"Error processing message: {str(e)}")
 
-def subscribe_and_listen():
-    subscriber = pubsub_v1.SubscriberClient()
-    subscription_path = subscriber.subscription_path(project_id, subscription_id)
+
+with subscriber:
     streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
-    
-    logger.log_text(f"Listening for messages on {subscription_path}...", severity='INFO')
-    
+        
+    print(f"Listening for messages on {subscription_path}...")
+            
     try:
         streaming_pull_future.result()
     except Exception as e:
+        print(f"Error receiving messages: {str(e)}")
         streaming_pull_future.cancel()
-        logger.log_text(f"Error receiving messages: {str(e)}", severity='ERROR')
+        
+        
 
-
-
-if __name__ == "__main__":
-    subscribe_and_listen()
