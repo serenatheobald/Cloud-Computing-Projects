@@ -93,16 +93,13 @@ def serve_file(bucket, dir_name, dir2_name, file_name):
         log_failed_request(filename, 501)
         return Response("Not implemented", content_type="text/html", status=501)
 
-    # Retrieve headers and add error handling for missing or incorrect values
+    # Retrieve headers 
     client_ip = request.headers.get('X-client-ip', '')
     gender = request.headers.get('X-gender', '')
-    try:
-        age = int(request.headers.get('X-age', 0))
-        income = float(request.headers.get('X-income', 0.0))
-    except ValueError:
-        age = 0
-        income = 0.0
-    time_of_day = request.headers.get('X-time-of-day', '00:00:00')  # Default time in case it's missing
+    age = request.headers.get('X-age')
+    income = request.headers.get('X-income')
+    time_of_day = request.headers.get('X-time')  
+    
 
     # If the country is banned, publish a message and return a 400 status
     if country in Banned_Countries:
@@ -133,6 +130,14 @@ def serve_file(bucket, dir_name, dir2_name, file_name):
 
 
 def inserting_into_table(country, client_ip, gender, age, income, is_banned, time_of_day, requested_file):
+    
+    log_entry = (f"Inserting data - Country: {country}, IP: {client_ip}, Gender: {gender}, "
+                 f"Age: {age}, Income: {income}, Is Banned: {is_banned}, "
+                 f"Time: {time_of_day}, File: {requested_file}")
+    
+    logger.log_text(log_entry, severity='INFO')
+
+    
     conn = getconn()
     with conn.cursor() as cursor:
         insert_stmt = """
@@ -140,11 +145,16 @@ def inserting_into_table(country, client_ip, gender, age, income, is_banned, tim
             (country, client_ip, gender, age, income, is_banned, time_of_day, requested_file)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
-        cursor.execute(
-            insert_stmt,
-            (country, client_ip, gender, age, income, is_banned, time_of_day, requested_file)
-        )
-        conn.commit()
+        try:
+            cursor.execute(
+                insert_stmt,
+                (country, client_ip, gender, age, income, is_banned, time_of_day, requested_file)
+            )
+            conn.commit()
+            logger.log_text("Data inserted successfully.", severity='INFO')
+        except Exception as e:
+            log_error = f"Error inserting data: {e}"
+            logger.log_text(log_error, severity='ERROR')
     conn.close()
 
 def log_failed_request(requested_file, error_code):
