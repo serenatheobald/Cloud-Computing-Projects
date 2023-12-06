@@ -1,0 +1,128 @@
+resources:
+  # Tag for 8080 Firewall
+  - name: allow-web-8080
+    type: compute.v1.firewall
+    properties:
+      allowed:
+        - IPProtocol: TCP
+          ports:
+            - "8080"
+      description: "Allow port 8080 access to web servers"
+      sourceRanges: ["0.0.0.0/0"]
+      targetTags: ["web-server-8080"]
+
+  # Service Account
+  - name: service-account
+    type: iam.v1.serviceAccount
+    properties:
+      accountId: hw10-sa
+      displayName: hw10-sa
+
+  - name: serena-hw10-bucket
+    type: storage.v1.bucket
+    properties:
+      location: US
+
+  # VM Web Server
+  - name: webserver-vm
+    type: compute.v1.instance
+    properties:
+      zone: us-east1-b
+      machineType: zones/us-east1-b/machineTypes/e2-medium
+      disks:
+        - deviceName: boot
+          type: PERSISTENT
+          boot: true
+          autoDelete: true
+          initializeParams:
+            sourceImage: projects/debian-cloud/global/images/family/debian-11
+      networkInterfaces:
+        - network: global/networks/default
+          accessConfigs:
+            - name: external-nat
+              type: ONE_TO_ONE_NAT
+              natIP: 34.73.174.251
+      serviceAccounts:
+        - email:  hw10-sa@ds-561-first-project.iam.gserviceaccount.com
+          scopes:
+            - https://www.googleapis.com/auth/cloud-platform
+            - https://www.googleapis.com/auth/devstorage.read_write
+      metadata:
+        dependsOn:
+          - service-account
+          - allow-web-8080
+          - serena-hw10-bucket
+          - sql-database-instance
+          - serena-hw10-topic
+          - serena-hw10-topic-sub
+
+        items:
+          - key: startup-script
+            value: |
+              #!/bin/bash
+              apt-get update
+              apt-get install -y python3 python3-pip google-cloud-sdk
+
+              mkdir -p /home/serenatheobald
+              gsutil cp gs://serena-hw10-bucket/Directory/hw10_app.py /home/serenatheobald/
+              gsutil cp gs://serena-hw10-bucket/Directory/requirements.txt /home/serenatheobald/
+              cd /home/serenatheobald
+              pip3 install -r requirements.txt
+              sudo systemctl enable hw10webserver
+              sudo systemctl start hw10webserver       
+      tags:
+        items:
+          - web-server-8080
+
+  # VM for Pub/Sub Listener
+  - name: pubsub-listener-vm
+    type: compute.v1.instance
+    properties:
+      zone: us-east1-b
+      machineType: zones/us-east1-b/machineTypes/e2-medium
+      disks:
+        - deviceName: boot
+          type: PERSISTENT
+          boot: true
+          autoDelete: true
+          initializeParams:
+            sourceImage: projects/debian-cloud/global/images/family/debian-11
+      networkInterfaces:
+        - network: global/networks/default
+          accessConfigs:
+            - name: external-nat
+              type: ONE_TO_ONE_NAT  # Specify the type of access config
+              natIP:   35.196.13.45
+
+      # Other propertie
+      serviceAccounts:
+        - email: hw10-sa@ds-561-first-project.iam.gserviceaccount.com
+          scopes:
+            - https://www.googleapis.com/auth/pubsub
+            - https://www.googleapis.com/auth/devstorage.read_write
+            - https://www.googleapis.com/auth/cloud-platform
+      metadata:
+        dependsOn:
+          - service-account
+          
+  # Cloud SQL Database
+  - name: sql-database-instance
+    type: sqladmin.v1beta4.instance
+    properties:
+      region: us-east1
+      project: ds-561-first-project
+      settings:
+        tier: db-custom-4-16384
+
+  # Pub/Sub Topic
+  - name: serena-hw10-topic
+    type: gcp-types/pubsub-v1:projects.topics
+    properties:
+      topic: serena-hw10-topic
+
+  # Pub/Sub Subscription
+  - name: serena-hw10-topic-sub
+    type: gcp-types/pubsub-v1:projects.subscriptions
+    properties:
+      subscription: serena-hw10-topic-sub
+      topic: projects/ds-561-first-project/topics/serena-hw10-topic
