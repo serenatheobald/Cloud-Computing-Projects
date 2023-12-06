@@ -41,7 +41,7 @@ resources:
           accessConfigs:
             - name: external-nat
               type: ONE_TO_ONE_NAT
-              natIP: 34.73.174.251
+              natIP: 35.231.205.84
       serviceAccounts:
         - email:  hw10-sa@ds-561-first-project.iam.gserviceaccount.com
           scopes:
